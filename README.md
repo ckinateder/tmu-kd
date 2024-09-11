@@ -79,3 +79,23 @@ If you're looking to contribute or experiment with the codebase, follow these st
    For your projects, simply create a new **branch** and then within the 'examples' folder, create a new project and initiate your development.
 
 ---
+
+## Calvin's Setup
+
+We're using a python virtual environment to manage the dependencies. To create a new virtual environment, run the following command:
+
+```bash
+python3 -m venv env
+```
+
+To activate the virtual environment, run the following command:
+
+```bash
+source env/bin/activate
+```
+
+To install the dependencies, run the following command:
+
+```bash
+pip install -e .
+```
