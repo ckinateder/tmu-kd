@@ -82,20 +82,14 @@ If you're looking to contribute or experiment with the codebase, follow these st
 
 ## Calvin's Setup
 
-We're using a python virtual environment to manage the dependencies. To create a new virtual environment, run the following command:
+Build the docker environment with:
 
 ```bash
-python3 -m venv env
+docker build -f Dockerfile.cuda -t tmu-kd:latest .
 ```
 
-To activate the virtual environment, run the following command:
+Then, run the image with 
 
 ```bash
-source env/bin/activate
-```
-
-To install the dependencies, run the following command:
-
-```bash
-pip install -e .
+docker run -it --gpus=all --name tmu-kd -v $(pwd):$(pwd) -w $(pwd) tmu-kd:latest /bin/bash
 ```
