@@ -50,6 +50,46 @@ pip install git+https://github.com/cair/tmu.git
 pip install git+https://github.com/cair/tmu.git@dev
 ```
 
+## Docker Setup
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- [NVIDIA Drivers](https://www.nvidia.com/Download/index.aspx)
+
+You will have to have CUDA version 12.4 or higher installed on your system. 
+
+### Building the Docker Image
+
+Build the docker environment with (replace `THREADS` with the number of threads you want to use):
+
+```bash
+docker build -f docker/ubuntu.Dockerfile --build-arg THREADS=8 -t tmu-kd:ubuntu .
+```
+
+Then, run the image with
+
+```bash
+docker run -it --gpus=all --name tmu-kd -v $(pwd):$(pwd) -w $(pwd) tmu-kd:ubuntu /bin/bash
+```
+
+**This is built for CUDA. If for some reason you can't use CUDA, use the `docker/alpine.Dockerfile image.**
+
+This will enter you into the container. If you exit, you can reenter (while it's still running) with
+
+```bash
+docker exec -it tmu-kd /bin/bash
+```
+
+### Running the Examples
+
+I'm testing with the MNISTConvultional example. To run it, you can use the following command:
+
+```bash
+python examples/classifcation/MNISTConvolutionDemo.py
+```
+
 ## 🛠 Development
 
 If you're looking to contribute or experiment with the codebase, follow these steps:
@@ -79,23 +119,3 @@ If you're looking to contribute or experiment with the codebase, follow these st
    For your projects, simply create a new **branch** and then within the 'examples' folder, create a new project and initiate your development.
 
 ---
-
-## Calvin's Setup
-
-Build the docker environment with:
-
-```bash
-docker build -f docker/ubuntu2404.Dockerfile -t tmu-kd:latest .
-```
-
-Then, run the image with
-
-```bash
-docker run -it --gpus=all --env NVIDIA_DISABLE_REQUIRE=1 --name tmu-kd -v $(pwd):$(pwd) -w $(pwd) tmu-kd:latest /bin/bash
-```
-
-This will enter you into the container. If you exit, you can reenter (while it's still running) with
-
-```bash
-docker exec -it tmu-kd /bin/bash
-```
