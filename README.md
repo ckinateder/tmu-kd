@@ -85,11 +85,17 @@ If you're looking to contribute or experiment with the codebase, follow these st
 Build the docker environment with:
 
 ```bash
-docker build -f Dockerfile.cuda -t tmu-kd:latest .
+docker build -f docker/ubuntu2404.Dockerfile -t tmu-kd:latest .
 ```
 
-Then, run the image with 
+Then, run the image with
 
 ```bash
-docker run -it --gpus=all --name tmu-kd -v $(pwd):$(pwd) -w $(pwd) tmu-kd:latest /bin/bash
+docker run -it --gpus=all --env NVIDIA_DISABLE_REQUIRE=1 --name tmu-kd -v $(pwd):$(pwd) -w $(pwd) tmu-kd:latest /bin/bash
+```
+
+This will enter you into the container. If you exit, you can reenter (while it's still running) with
+
+```bash
+docker exec -it tmu-kd /bin/bash
 ```
