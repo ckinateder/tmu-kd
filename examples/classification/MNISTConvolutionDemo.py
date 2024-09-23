@@ -3,7 +3,7 @@ import argparse
 from tmu.data import MNIST
 from tmu.models.classification.vanilla_classifier import TMClassifier
 from tmu.tools import BenchmarkTimer
-from datetime import datetime, timedelta
+from tmu.util.times import add_time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +50,11 @@ def main(args):
         _LOGGER.info(f"Epoch: {epoch + 1}/{args.epochs}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
                      f"Testing Time: {benchmark2.elapsed():.2f}s")
         
+        # calculate ETA 
+        if epoch > 0:
+            eta = add_time((benchmark1.elapsed() + benchmark2.elapsed()) * (args.epochs - epoch))
+            _LOGGER.info(f"ETA: {eta}")
+            
             
 
 

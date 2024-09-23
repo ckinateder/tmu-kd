@@ -43,9 +43,3 @@ COPY . /app
 # install dependencies
 RUN pip install -e .
 RUN pip install -r cuda-requirements.txt
-
-# Remove App files, we don't need them anymore
-RUN rm -rf /app
-
-# Set the working directory
-WORKDIR /app
