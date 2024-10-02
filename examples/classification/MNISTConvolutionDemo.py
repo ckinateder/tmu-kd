@@ -44,19 +44,12 @@ def main(args):
         benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
         with benchmark2:
             result = 100 * (tm.predict(data["x_test"]) == data["y_test"]).mean()
-        experiment_results["train_time"].append(benchmark2.elapsed())
+        experiment_results["test_time"].append(benchmark2.elapsed())
         experiment_results["accuracy"].append(result)
 
         _LOGGER.info(f"Epoch: {epoch + 1}/{args.epochs}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
                      f"Testing Time: {benchmark2.elapsed():.2f}s")
         
-        # calculate ETA 
-        if epoch > 0:
-            eta = add_time((benchmark1.elapsed() + benchmark2.elapsed()) * (args.epochs - epoch))
-            _LOGGER.info(f"ETA: {eta}")
-            
-            
-
 
 def default_args(**kwargs):
     parser = argparse.ArgumentParser()

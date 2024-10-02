@@ -377,8 +377,8 @@ class TMClassifier(TMBaseModel, MultiClauseBankMixin, MultiWeightBankMixin):
         assert X.shape[0] == len(Y), "X and Y must have the same number of samples"
         assert len(X.shape) >= 2, "X must be a 2D array"
         assert len(Y.shape) == 1, "Y must be a 1D array"
-        assert X.dtype == np.uint32, "X must be of type uint32"
-        assert Y.dtype == np.uint32, "Y must be of type uint32"
+        #assert X.dtype == np.uint32, "X must be of type uint32"
+        #assert Y.dtype == np.uint32, "Y must be of type uint32"
 
         self.init(X, Y)
         self.metrics.clear()

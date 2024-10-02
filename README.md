@@ -84,10 +84,10 @@ docker exec -it tmu-kd /bin/bash
 
 ### Running the Examples
 
-I'm testing with the MNISTConvultional example. To run it, you can use the following command:
+I created a script to run our baseline:
 
 ```bash
-python examples/classifcation/MNISTConvolutionDemo.py
+./baseline.sh
 ```
 
 ## 🛠 Development
@@ -96,7 +96,7 @@ If you're looking to contribute or experiment with the codebase, follow these st
 
 1. **Clone the Repository**:
    ```bash
-   git clone -b dev git@github.com:cair/tmu.git && cd tmu
+   git clone -b dev git@github.com:ckinateder/tmu-kd.git && cd tmu
    ```
 
 2. **Set Up Development Environment**:

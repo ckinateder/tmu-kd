@@ -17,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("--T", default=5000//100, type=int)
     parser.add_argument("--s", default=10.0, type=float)
     parser.add_argument("--max_included_literals", default=32, type=int)
-    parser.add_argument("--device", default="CPU", type=str)
+    parser.add_argument("--device", default="GPU", type=str)
     parser.add_argument("--weighted_clauses", default=False, type=bool)
     parser.add_argument("--epochs", default=60, type=int)
     parser.add_argument("--type_i_ii_ratio", default=1.0, type=float)
