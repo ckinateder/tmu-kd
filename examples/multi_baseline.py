@@ -5,7 +5,7 @@ from tmu.models.classification.vanilla_classifier import TMClassifier
 from tmu.tools import BenchmarkTimer
 from tmu.util.cuda_profiler import CudaProfiler
 import numpy as np
-from keras.datasets import cifar10, fashion_mnist, cifar100
+from keras.datasets import cifar10, fashion_mnist
 import cv2
 import os
 
@@ -53,6 +53,7 @@ def run_cifar10(
     clause_drop_p=0.0,
     batch_size=512,
 ):
+    
     args = DotDict(
         {
             "num_clauses": num_clauses,
@@ -126,6 +127,7 @@ def run_cifar10(
     )
 
     _LOGGER.info(f"Running {TMClassifier} for {args.epochs}")
+    start_time = time()
     for epoch in range(args.epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
@@ -147,6 +149,8 @@ def run_cifar10(
 
         if args.device == "CUDA":
             CudaProfiler().print_timings(benchmark=benchmark_total)
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
     return experiment_results
 
 
@@ -231,6 +235,7 @@ def run_cifar100(
     )
 
     _LOGGER.info(f"Running {TMClassifier} for {args.epochs}")
+    start_time = time()
     for epoch in range(args.epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
@@ -252,6 +257,9 @@ def run_cifar100(
 
         if args.device == "CUDA":
             CudaProfiler().print_timings(benchmark=benchmark_total)
+
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
     return experiment_results
 
 
@@ -297,6 +305,7 @@ def run_mnist(
         batch_size=args.batch_size,
     )
 
+    start_time = time()
     for epoch in range(args.epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
@@ -323,6 +332,8 @@ def run_mnist(
         if args.platform == "CUDA":
             CudaProfiler().print_timings(benchmark=benchmark_total)
 
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
     return experiment_results
 
 def run_fashion_mnist(
@@ -366,6 +377,7 @@ def run_fashion_mnist(
         batch_size=args.batch_size,
     )
 
+    start_time = time()
     for epoch in range(args.epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
@@ -392,6 +404,9 @@ def run_fashion_mnist(
         if args.platform == "CUDA":
             CudaProfiler().print_timings(benchmark=benchmark_total)
 
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
+
     return experiment_results
 
 
@@ -407,13 +422,15 @@ if __name__ == "__main__":
         os.makedirs("logs")
     if os.path.exists(args.log_file):
         os.remove(args.log_file)
+    if os.path.exists("latest.log"):
+        os.remove("latest.log")
         
     
 
     _LOGGER.setLevel(logging.DEBUG)
 
     # Create a formatter to define the log format
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S %Z')
 
     # Create a file handler to write logs to a file
     file_handler = logging.FileHandler(args.log_file)
