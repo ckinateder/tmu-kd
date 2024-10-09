@@ -5,13 +5,13 @@ from tmu.models.classification.vanilla_classifier import TMClassifier
 from tmu.tools import BenchmarkTimer
 from tmu.util.cuda_profiler import CudaProfiler
 import numpy as np
-from keras.datasets import cifar10, fashion_mnist
+from keras.datasets import cifar10, cifar100
 import cv2
 import os
 
 import numpy as np
 
-from tmu.data import MNIST, FashionMNIST, CIFAR10, CIFAR100
+from tmu.data import MNIST, FashionMNIST, CIFAR10
 
 import numpy as np
 from time import time
@@ -47,10 +47,11 @@ def run_cifar10(
     s=10.0,
     max_included_literals=32,
     device="CUDA",
-    weighted_clauses=False,
+    weighted_clauses=True,
     epochs=60,
     type_i_ii_ratio=1.0,
     clause_drop_p=0.0,
+    literal_drop_p=0.0,
     batch_size=512,
 ):
     
@@ -65,6 +66,7 @@ def run_cifar10(
             "epochs": epochs,
             "type_i_ii_ratio": type_i_ii_ratio,
             "clause_drop_p": clause_drop_p,
+            "literal_drop_p": literal_drop_p,
             "batch_size": batch_size
         }
     )
@@ -123,6 +125,7 @@ def run_cifar10(
         type_i_ii_ratio=args.type_i_ii_ratio,
         seed=SEED,
         clause_drop_p=args.clause_drop_p,
+        literal_drop_p=args.literal_drop_p,
         batch_size=args.batch_size,
     )
 
@@ -161,10 +164,11 @@ def run_cifar100(
     s=10.0,
     max_included_literals=32,
     device="CUDA",
-    weighted_clauses=False,
+    weighted_clauses=True,
     epochs=60,
     type_i_ii_ratio=1.0,
     clause_drop_p=0.0,
+    literal_drop_p=0.0,
     batch_size=100,
 ):
     args = DotDict(
@@ -178,6 +182,7 @@ def run_cifar100(
             "epochs": epochs,
             "type_i_ii_ratio": type_i_ii_ratio,
             "clause_drop_p": clause_drop_p,
+            "literal_drop_p": literal_drop_p,
             "batch_size": batch_size
         }
     )
@@ -273,6 +278,7 @@ def run_mnist(
     weighted_clauses=True,
     epochs=60,
     clause_drop_p=0.0,
+    literal_drop_p=0.0,
     batch_size=256,
 ):
     args = DotDict(
@@ -285,6 +291,7 @@ def run_mnist(
             "weighted_clauses": weighted_clauses,
             "epochs": epochs,
             "clause_drop_p": clause_drop_p,
+            "literal_drop_p": literal_drop_p,
             "batch_size": batch_size   
         }
     )
@@ -302,6 +309,7 @@ def run_mnist(
         weighted_clauses=args.weighted_clauses,
         seed=SEED,
         clause_drop_p=args.clause_drop_p,
+        literal_drop_p=args.literal_drop_p,
         batch_size=args.batch_size,
     )
 
@@ -345,6 +353,7 @@ def run_fashion_mnist(
     weighted_clauses=True,
     epochs=60,
     clause_drop_p=0.0,
+    literal_drop_p=0.0,
     batch_size=256,
 ):
     args = DotDict(
@@ -357,6 +366,7 @@ def run_fashion_mnist(
             "weighted_clauses": weighted_clauses,
             "epochs": epochs,
             "clause_drop_p": clause_drop_p,
+            "literal_drop_p": literal_drop_p,
             "batch_size": batch_size
         }
     )
@@ -374,6 +384,7 @@ def run_fashion_mnist(
         weighted_clauses=args.weighted_clauses,
         seed=SEED,
         clause_drop_p=args.clause_drop_p,
+        literal_drop_p=args.literal_drop_p,
         batch_size=args.batch_size,
     )
 
