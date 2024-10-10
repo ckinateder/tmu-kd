@@ -11,13 +11,16 @@ import os
 
 import numpy as np
 
+import json
 from tmu.data import MNIST, FashionMNIST, CIFAR10
 
 import numpy as np
 from time import time
 
 import ssl
+import pdb
 ssl._create_default_https_context = ssl._create_unverified_context
+from torch.utils.tensorboard import SummaryWriter
 
 SEED = 42
 
@@ -33,12 +36,14 @@ class DotDict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
-def metrics(args):
+def metrics(args, experiment_name=""):
     return dict(
         accuracy=[],
         train_time=[],
         test_time=[],
-        args=vars(args)
+        total_time=-1,
+        experiment_name=experiment_name,
+        args=args
     )
 
 def run_cifar10(
@@ -71,7 +76,7 @@ def run_cifar10(
         }
     )
     _LOGGER.info(f"Running CIFAR10 with {args}")
-    experiment_results = metrics(args)
+    experiment_results = metrics(args, "CIFAR10")
 
     # switch between using keras dataset and tmu dataset
 
@@ -154,6 +159,7 @@ def run_cifar10(
             CudaProfiler().print_timings(benchmark=benchmark_total)
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    experiment_results["total_time"] = end_time - start_time
     return experiment_results
 
 
@@ -187,7 +193,7 @@ def run_cifar100(
         }
     )
     _LOGGER.info(f"Running CIFAR10 with {args}")
-    experiment_results = metrics(args)
+    experiment_results = metrics(args, "CIFAR100")
 
     (X_train, Y_train), (X_test, Y_test) = cifar100.load_data() 
 
@@ -265,6 +271,7 @@ def run_cifar100(
 
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    experiment_results["total_time"] = end_time - start_time
     return experiment_results
 
 
@@ -296,7 +303,7 @@ def run_mnist(
         }
     )
     _LOGGER.info(f"Running MNIST with {args}")
-    experiment_results = metrics(args)
+    experiment_results = metrics(args,  "MNIST")
     data = MNIST().get()
 
     tm = TMClassifier(
@@ -342,6 +349,7 @@ def run_mnist(
 
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    experiment_results["total_time"] = end_time - start_time
     return experiment_results
 
 def run_fashion_mnist(
@@ -371,7 +379,7 @@ def run_fashion_mnist(
         }
     )
     _LOGGER.info(f"Running FashionMNIST with {args}")
-    experiment_results = metrics(args)
+    experiment_results = metrics(args, "FashionMNIST")
     data = FashionMNIST().get()
 
     tm = TMClassifier(
@@ -417,7 +425,7 @@ def run_fashion_mnist(
 
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
-
+    experiment_results["total_time"] = end_time - start_time
     return experiment_results
 
 
@@ -435,9 +443,8 @@ if __name__ == "__main__":
         os.remove(args.log_file)
     if os.path.exists("latest.log"):
         os.remove("latest.log")
-        
-    
 
+    # Set the desired log level here
     _LOGGER.setLevel(logging.DEBUG)
 
     # Create a formatter to define the log format
@@ -445,11 +452,11 @@ if __name__ == "__main__":
 
     # Create a file handler to write logs to a file
     file_handler = logging.FileHandler(args.log_file)
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
 
     lfile_handler = logging.FileHandler("latest.log")
-    lfile_handler.setLevel(logging.DEBUG)
+    lfile_handler.setLevel(logging.INFO)
     lfile_handler.setFormatter(formatter)
 
     # Create a stream handler to print logs to the console
@@ -463,10 +470,38 @@ if __name__ == "__main__":
     _LOGGER.addHandler(lfile_handler)
     _LOGGER.addHandler(console_handler)
 
-    _LOGGER.info(f"Logging to {args.log_file}")
+    _LOGGER.info(f"Logging to {args.log_file} and latest.log")
+
+    results = []
 
     # run experiments
-    run_fashion_mnist(num_clauses=8000, T=6400, s=5)
-    run_mnist(num_clauses=8000, T=6400, s=5)
-    run_cifar10(num_clauses=60000, T=48000, s=10)
-    
+    # put them all into a tuple
+    experiments = [
+        (run_fashion_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_cifar10, {"num_clauses": 60000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
+        (run_cifar10, {"num_clauses": 45000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
+        (run_cifar10, {"num_clauses": 30000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
+    ]
+
+    fashion_ex, mnist_ex, cifar10_ex = experiments[:3], experiments[3:6], experiments[6:]
+
+    for ex in experiments:
+        func, kwargs = ex
+        result = func(**kwargs)
+        results.append(result)
+        # save results
+        with open(os.path.join("logs", f"results-{current_time}.json"), "w") as f:
+            json.dump(results, f, indent=4)
+        with open("latest.json", "w") as f:
+            json.dump(results, f, indent=4)
+
+
+    # print results
+    for result in results:
+        _LOGGER.info(result)
+
