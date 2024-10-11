@@ -90,6 +90,12 @@ I created a script to run our baseline:
 ./baseline.sh
 ```
 
+This will run 
+- MNIST
+- FashionMNIST
+- CIFAR-10
+with different configurations.
+
 ## 🛠 Development
 
 If you're looking to contribute or experiment with the codebase, follow these steps:

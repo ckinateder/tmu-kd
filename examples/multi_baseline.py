@@ -7,8 +7,8 @@ from tmu.util.cuda_profiler import CudaProfiler
 import numpy as np
 from keras.datasets import cifar10, cifar100
 import cv2
+from datetime import datetime
 import os
-
 import numpy as np
 
 import json
@@ -20,7 +20,6 @@ from time import time
 import ssl
 import pdb
 ssl._create_default_https_context = ssl._create_unverified_context
-from torch.utils.tensorboard import SummaryWriter
 
 SEED = 42
 
@@ -333,8 +332,6 @@ def run_mnist(
                 )
 
             experiment_results["train_time"].append(benchmark1.elapsed())
-
-            # print(res)
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
                 result = 100 * (tm.predict(data["x_test"]) == data["y_test"]).mean()
@@ -430,7 +427,6 @@ def run_fashion_mnist(
 
 
 if __name__ == "__main__":
-    from datetime import datetime
     current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-file", default=os.path.join("logs",
@@ -472,17 +468,18 @@ if __name__ == "__main__":
 
     _LOGGER.info(f"Logging to {args.log_file} and latest.log")
 
+
     results = []
 
     # run experiments
     # put them all into a tuple
     experiments = [
-        (run_fashion_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_fashion_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_fashion_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_cifar10, {"num_clauses": 60000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
         (run_cifar10, {"num_clauses": 45000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
         (run_cifar10, {"num_clauses": 30000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
@@ -490,7 +487,7 @@ if __name__ == "__main__":
 
     fashion_ex, mnist_ex, cifar10_ex = experiments[:3], experiments[3:6], experiments[6:]
 
-    for ex in experiments:
+    for ex in cifar10_ex:
         func, kwargs = ex
         result = func(**kwargs)
         results.append(result)
