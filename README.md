@@ -82,7 +82,7 @@ This will enter you into the container. If you exit, you can reenter (while it's
 docker exec -it tmu-kd /bin/bash
 ```
 
-### Running the Examples
+### Experiments
 
 I created a script to run our baseline:
 

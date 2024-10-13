@@ -431,14 +431,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-file", default=os.path.join("logs",
                         f"multi-baseline-{current_time}.log"), type=str)
+    parser.add_argument("--no-log", action="store_true", default=False, help="Disable logging to file")
 
     args = parser.parse_args()
-    if not os.path.exists("logs"):
-        os.makedirs("logs")
-    if os.path.exists(args.log_file):
-        os.remove(args.log_file)
-    if os.path.exists("latest.log"):
-        os.remove("latest.log")
+
+    if not args.no_log:
+        if not os.path.exists("logs"):
+            os.makedirs("logs")
+        if os.path.exists(args.log_file):
+            os.remove(args.log_file)
+        if os.path.exists("latest.log"):
+            os.remove("latest.log")
 
     # Set the desired log level here
     _LOGGER.setLevel(logging.DEBUG)
@@ -446,28 +449,24 @@ if __name__ == "__main__":
     # Create a formatter to define the log format
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S %Z')
 
-    # Create a file handler to write logs to a file
-    file_handler = logging.FileHandler(args.log_file)
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-
-    lfile_handler = logging.FileHandler("latest.log")
-    lfile_handler.setLevel(logging.INFO)
-    lfile_handler.setFormatter(formatter)
-
     # Create a stream handler to print logs to the console
     console_handler = logging.StreamHandler()
-    # You can set the desired log level for console output
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
-
-    # Add the handlers to the logger
-    _LOGGER.addHandler(file_handler)
-    _LOGGER.addHandler(lfile_handler)
     _LOGGER.addHandler(console_handler)
 
-    _LOGGER.info(f"Logging to {args.log_file} and latest.log")
+    if not args.no_log:
+        # Create a file handler to write logs to a file
+        file_handler = logging.FileHandler(args.log_file)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        _LOGGER.addHandler(file_handler)
 
+        lfile_handler = logging.FileHandler("latest.log")
+        lfile_handler.setLevel(logging.INFO)
+        lfile_handler.setFormatter(formatter)
+        _LOGGER.addHandler(lfile_handler)
+        _LOGGER.info(f"Logging to {args.log_file} and latest.log")
 
     results = []
 
@@ -477,25 +476,26 @@ if __name__ == "__main__":
         (run_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_fashion_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_fashion_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_fashion_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_cifar10, {"num_clauses": 60000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
-        (run_cifar10, {"num_clauses": 45000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
-        (run_cifar10, {"num_clauses": 30000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 100, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 1000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_fashion_mnist, {"num_clauses": 2000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_cifar10, {"num_clauses": 10000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
+        (run_cifar10, {"num_clauses": 15000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
+        (run_cifar10, {"num_clauses": 20000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60}),
     ]
 
-    fashion_ex, mnist_ex, cifar10_ex = experiments[:3], experiments[3:6], experiments[6:]
+    mnist_ex, fashion_ex, cifar10_ex = experiments[:3], experiments[3:6], experiments[6:]
 
-    for ex in cifar10_ex:
+    for ex in fashion_ex+cifar10_ex:
         func, kwargs = ex
         result = func(**kwargs)
         results.append(result)
         # save results
-        with open(os.path.join("logs", f"results-{current_time}.json"), "w") as f:
-            json.dump(results, f, indent=4)
-        with open("latest.json", "w") as f:
-            json.dump(results, f, indent=4)
+        if not args.no_log:
+            with open(os.path.join("logs", f"results-{current_time}.json"), "w") as f:
+                json.dump(results, f, indent=4)
+            with open("latest.json", "w") as f:
+                json.dump(results, f, indent=4)
 
 
     # print results
