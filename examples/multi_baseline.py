@@ -38,6 +38,7 @@ class DotDict(dict):
 def metrics(args, experiment_name=""):
     return dict(
         accuracy=[],
+        variance=-1,
         train_time=[],
         test_time=[],
         total_time=-1,
@@ -275,79 +276,6 @@ def run_cifar100(
 
 
 
-def run_mnist(
-    num_clauses=2000,
-    T=5000,
-    s=10.0,
-    max_included_literals=32,
-    platform="CUDA",
-    weighted_clauses=True,
-    epochs=60,
-    clause_drop_p=0.0,
-    literal_drop_p=0.0,
-    batch_size=256,
-):
-    args = DotDict(
-        {
-            "num_clauses": num_clauses,
-            "T": T,
-            "s": s,
-            "max_included_literals": max_included_literals,
-            "platform": platform,
-            "weighted_clauses": weighted_clauses,
-            "epochs": epochs,
-            "clause_drop_p": clause_drop_p,
-            "literal_drop_p": literal_drop_p,
-            "batch_size": batch_size   
-        }
-    )
-    _LOGGER.info(f"Running MNIST with {args}")
-    experiment_results = metrics(args,  "MNIST")
-    data = MNIST().get()
-
-    tm = TMClassifier(
-        type_iii_feedback=False,
-        number_of_clauses=args.num_clauses,
-        T=args.T,
-        s=args.s,
-        max_included_literals=args.max_included_literals,
-        platform=args.platform,
-        weighted_clauses=args.weighted_clauses,
-        seed=SEED,
-        clause_drop_p=args.clause_drop_p,
-        literal_drop_p=args.literal_drop_p,
-        batch_size=args.batch_size,
-    )
-
-    start_time = time()
-    for epoch in range(args.epochs):
-        benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
-        with benchmark_total:
-            benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
-            with benchmark1:
-                res = tm.fit(
-                    data["x_train"].astype(np.uint32),
-                    data["y_train"].astype(np.uint32),
-                    metrics=["update_p"],
-                )
-
-            experiment_results["train_time"].append(benchmark1.elapsed())
-            benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
-            with benchmark2:
-                result = 100 * (tm.predict(data["x_test"]) == data["y_test"]).mean()
-                experiment_results["accuracy"].append(result)
-            experiment_results["test_time"].append(benchmark2.elapsed())
-
-            _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
-                         f"Testing Time: {benchmark2.elapsed():.2f}s")
-
-        if args.platform == "CUDA":
-            CudaProfiler().print_timings(benchmark=benchmark_total)
-
-    end_time = time()
-    _LOGGER.info(f"Total time taken: {end_time - start_time}")
-    experiment_results["total_time"] = end_time - start_time
-    return experiment_results
 
 def run_fashion_mnist(
     num_clauses=2000,
@@ -423,7 +351,87 @@ def run_fashion_mnist(
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
     experiment_results["total_time"] = end_time - start_time
+    experiment_results["variance"] = np.var(experiment_results["accuracy"])
+
     return experiment_results
+
+def run_mnist(
+    num_clauses=2000,
+    T=5000,
+    s=10.0,
+    max_included_literals=32,
+    platform="CUDA",
+    weighted_clauses=True,
+    epochs=60,
+    clause_drop_p=0.0,
+    literal_drop_p=0.0,
+    batch_size=256,
+):
+    args = DotDict(
+        {
+            "num_clauses": num_clauses,
+            "T": T,
+            "s": s,
+            "max_included_literals": max_included_literals,
+            "platform": platform,
+            "weighted_clauses": weighted_clauses,
+            "epochs": epochs,
+            "clause_drop_p": clause_drop_p,
+            "literal_drop_p": literal_drop_p,
+            "batch_size": batch_size   
+        }
+    )
+    _LOGGER.info(f"Running MNIST with {args}")
+    experiment_results = metrics(args,  "MNIST")
+    data = MNIST().get()
+
+    tm = TMClassifier(
+        type_iii_feedback=False,
+        number_of_clauses=args.num_clauses,
+        T=args.T,
+        s=args.s,
+        max_included_literals=args.max_included_literals,
+        platform=args.platform,
+        weighted_clauses=args.weighted_clauses,
+        seed=SEED,
+        clause_drop_p=args.clause_drop_p,
+        literal_drop_p=args.literal_drop_p,
+        batch_size=args.batch_size,
+    )
+
+    start_time = time()
+    for epoch in range(args.epochs):
+        benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
+        with benchmark_total:
+            benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
+            with benchmark1:
+                res = tm.fit(
+                    data["x_train"].astype(np.uint32),
+                    data["y_train"].astype(np.uint32),
+                    metrics=["update_p"],
+                )
+                _LOGGER.info(f"Res: {res}")
+
+            experiment_results["train_time"].append(benchmark1.elapsed())
+            benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
+            with benchmark2:
+                result = 100 * (tm.predict(data["x_test"]) == data["y_test"]).mean()
+                experiment_results["accuracy"].append(result)
+            experiment_results["test_time"].append(benchmark2.elapsed())
+
+            _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
+                         f"Testing Time: {benchmark2.elapsed():.2f}s")
+
+        if args.platform == "CUDA":
+            CudaProfiler().print_timings(benchmark=benchmark_total)
+
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    experiment_results["total_time"] = end_time - start_time
+    return experiment_results
+
+## TODO
+## def run_general(x,y, **)
 
 
 if __name__ == "__main__":
