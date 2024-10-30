@@ -34,3 +34,11 @@ class MNIST(TMUDataset):
             return dataset.astype(np.uint32)
 
         return np.where(dataset.reshape((dataset.shape[0], 28 * 28)) > 75, 1, 0).astype(np.uint32)
+
+
+if __name__ == "__main__":
+
+    mnist_ds = MNIST()
+    mnist_ds.get()
+
+    print(mnist_ds.get())

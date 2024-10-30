@@ -1,53 +1,34 @@
 from typing import Dict
 import numpy as np
 from tmu.data import TMUDataset
-from tmu.data.utils.downloader import get_file
-
+from keras.datasets import cifar10
+import cv2
 
 class CIFAR10(TMUDataset):
     def _retrieve_dataset(self) -> Dict[str, np.ndarray]:
-        origin_folder = (
-            "https://www.cs.toronto.edu/~kriz/"
-        )
+        (X_train, Y_train), (X_test, Y_test) = cifar10.load_data()
+        X_train = np.copy(X_train)
+        X_test = np.copy(X_test)
 
-        path = get_file(
-            "cifar-10-python.tar.gz",
-            origin=origin_folder + "cifar-10-python.tar.gz",
-            extract=True,
-            extract_archive_format="tar",
-            file_hash=(
-                '6d958be074577803d12ecdefd02955f39262c83c16fe9348329d7fe0b5c001ce'
-            )
-        )
-        path = path + "/cifar-10-batches-py"
+        for i in range(X_train.shape[0]):
+            for j in range(X_train.shape[3]):
+                    X_train[i,:,:,j] = cv2.adaptiveThreshold(X_train[i,:,:,j], 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2) 
 
-        # Load the data from the files. Note: you might need to change the file paths based on the extraction
-        def unpickle(file):
-            import pickle
-            with open(file, 'rb') as fo:
-                dict = pickle.load(fo, encoding='bytes')
-            return dict
+        for i in range(X_test.shape[0]):
+            for j in range(X_test.shape[3]):
+                X_test[i,:,:,j] = cv2.adaptiveThreshold(X_test[i,:,:,j], 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
-        # Loading train data
-        x_train = []
-        y_train = []
-        for i in range(1, 6):  # CIFAR-10 has 5 batches of training data
-            batch_data = unpickle(path + f"/data_batch_{i}")
-            x_train.append(batch_data[b'data'].reshape((10000, 3, 32, 32)).transpose(0, 2, 3, 1))
-            y_train.append(np.array(batch_data[b'labels']))
-        x_train = np.concatenate(x_train)
-        y_train = np.concatenate(y_train)
+        X_train = X_train.reshape(X_train.shape[0], -1)
+        X_test = X_test.reshape(X_test.shape[0], -1)
 
-        # Loading test data
-        test_data = unpickle(path + "/test_batch")
-        x_test = test_data[b'data'].reshape((10000, 3, 32, 32)).transpose(0, 2, 3, 1)
-        y_test = np.array(test_data[b'labels'])
+        Y_train = Y_train.reshape(Y_train.shape[0])
+        Y_test = Y_test.reshape(Y_test.shape[0])
 
         return dict(
-            x_train=x_train,
-            y_train=y_train,
-            x_test=x_test,
-            y_test=y_test
+            x_train=X_train,
+            y_train=Y_train,
+            x_test=X_test,
+            y_test=Y_test
         )
 
     def _transform(self, name, dataset):
@@ -55,7 +36,8 @@ class CIFAR10(TMUDataset):
 
 
 if __name__ == "__main__":
-
     cifar_ds = CIFAR10()
     cifar_ds.get()
+
+    print(cifar_ds.get())
 

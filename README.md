@@ -109,16 +109,16 @@ If you're looking to contribute or experiment with the codebase, follow these st
    Navigate to the project directory and compile the C library:
    ```bash
    # Install TMU
-    pip install .
+   pip install .
    
    # (Alternative): Install TMU in Development Mode
-    pip install -e .
+   pip install -e .
    
    # Install TMU-Composite
-    pip install .[composite]
+   pip install .[composite]
    
    # Install TMU-Composite in Development Mode
-    pip install -e .[composite]
+   pip install -e .[composite]
    ```
 
 3. **Starting a New Project**:
