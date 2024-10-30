@@ -473,9 +473,12 @@ if __name__ == "__main__":
     # run experiments
     # put them all into a tuple
     experiments = [
-        (run_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
-        (run_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        #(run_mnist, {"num_clauses": 8000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        #(run_mnist, {"num_clauses": 6000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        #(run_mnist, {"num_clauses": 4000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_mnist, {"num_clauses": 2000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_mnist, {"num_clauses": 800, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
+        (run_mnist, {"num_clauses": 80, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_fashion_mnist, {"num_clauses": 100, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_fashion_mnist, {"num_clauses": 1000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
         (run_fashion_mnist, {"num_clauses": 2000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60}),
@@ -486,7 +489,7 @@ if __name__ == "__main__":
 
     mnist_ex, fashion_ex, cifar10_ex = experiments[:3], experiments[3:6], experiments[6:]
 
-    for ex in fashion_ex+cifar10_ex:
+    for ex in mnist_ex:
         func, kwargs = ex
         result = func(**kwargs)
         results.append(result)
