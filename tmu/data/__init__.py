@@ -9,3 +9,4 @@ from .cifar100 import CIFAR100
 from .nsl_kdd import NSLKDD
 from .unsw_nb15 import UNSW_NB15
 from .imdb_keras import IMDB
+from .vggflowers import VGGFlowers

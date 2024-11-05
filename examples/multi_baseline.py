@@ -116,6 +116,7 @@ def run_general_experiment(
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
                 prediction, class_sums = tm.predict(data["x_test"], return_class_sums=True)
+                pdb.set_trace()
                 # class sums 
 
                 result = 100 * (prediction == data["y_test"]).mean()
@@ -181,12 +182,12 @@ if __name__ == "__main__":
     
 
     general_experiments = [
-        {"dataset":CIFAR10, "experiment_name": "CIFAR10","num_clauses": 10000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60},
-        {"dataset":CIFAR10,"experiment_name": "CIFAR10", "num_clauses": 15000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60},
-        {"dataset":CIFAR10, "experiment_name": "CIFAR10", "num_clauses": 20000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60},
         {"dataset":MNIST, "experiment_name": "MNIST", "num_clauses": 80, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
         {"dataset":MNIST, "experiment_name": "MNIST", "num_clauses": 800, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
         {"dataset":MNIST, "experiment_name": "MNIST", "num_clauses": 2000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
+        {"dataset":CIFAR10, "experiment_name": "CIFAR10","num_clauses": 10000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60},
+        {"dataset":CIFAR10,"experiment_name": "CIFAR10", "num_clauses": 15000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60},
+        {"dataset":CIFAR10, "experiment_name": "CIFAR10", "num_clauses": 20000, "T": 48000, "s": 10, "clause_drop_p": 0.5, "epochs": 60},
         {"dataset":FashionMNIST, "experiment_name": "FashionMNIST", "num_clauses": 100, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
         {"dataset":FashionMNIST, "experiment_name": "FashionMNIST", "num_clauses": 1000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
         {"dataset":FashionMNIST, "experiment_name": "FashionMNIST", "num_clauses": 2000, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},

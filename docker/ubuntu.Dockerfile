@@ -47,4 +47,4 @@ COPY . /app
 # install dependencies
 RUN pip install -e .
 RUN pip install -r cuda-requirements.txt
-RUN python -m pip install pycuda opencv-python tensorflow[and-cuda] torch torch-tensorrt tensorrt --extra-index-url https://download.pytorch.org/whl/cu124
+RUN python -m pip install kagglehub pillow pycuda opencv-python tensorflow[and-cuda] torch torch-tensorrt tensorrt --extra-index-url https://download.pytorch.org/whl/cu124
