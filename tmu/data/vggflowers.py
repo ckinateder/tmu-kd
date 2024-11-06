@@ -11,16 +11,16 @@ random.seed(42)
 from tmu.util import train_test_split
 
 class VGGFlowers(TMUDataset):
-    def __init__(self, size: int = 64):
+    def __init__(self, size: int = 64, tt_split: float = 0.8):
         self.size = size # size of the images to be resized to
+        self.tt_split = tt_split
         super().__init__()
 
     def _retrieve_dataset(self) -> dict:
         # Download latest version
         path = kagglehub.dataset_download("arjun2000ashok/vggflowers")
         path = os.path.join(path, "images")
-        # need file lists from https://raw.githubusercontent.com/ashok-arjun/MLRC-2021-Few-Shot-Learning-And-Self-Supervision/refs/heads/master/filelists/flowers/base_80.json
-        files_and_labels = requests.get("https://raw.githubusercontent.com/ashok-arjun/MLRC-2021-Few-Shot-Learning-And-Self-Supervision/refs/heads/master/filelists/flowers/base_80.json").json()
+        files_and_labels = requests.get("https://raw.githubusercontent.com/ashok-arjun/MLRC-2021-Few-Shot-Learning-And-Self-Supervision/refs/heads/master/filelists/flowers/base.json").json()
         images_names = files_and_labels["image_names"]
         labels = files_and_labels["image_labels"]
         images = []
@@ -42,7 +42,7 @@ class VGGFlowers(TMUDataset):
         labels = np.array(labels)
 
         # split the dataset
-        images_train, images_test, labels_train, labels_test = train_test_split(images, labels, test_size=0.2, random_state=42)
+        images_train, images_test, labels_train, labels_test = train_test_split(images, labels, test_size=self.tt_split, random_state=42)
 
         return dict(
             x_train=images_train,
@@ -61,5 +61,18 @@ class VGGFlowers(TMUDataset):
     
 
 if __name__ == "__main__":
-    vggflowers_ds = VGGFlowers()
-    print(vggflowers_ds.get())
+    size = 64
+    tt_spilt = .8
+
+    vggflowers_ds = VGGFlowers(size=size, tt_split=tt_spilt)
+    data = vggflowers_ds.get()
+    info = f"{size}x{size}_{int(tt_spilt*100)}"
+    print(f"Saving as vggflowers_{info}.npy")
+
+    # save as npy files
+    np.save(f"vggflowers_x_train_{info}.npy", data["x_train"])
+    np.save(f"vggflowers_y_train_{info}.npy", data["y_train"])
+    np.save(f"vggflowers_x_test_{info}.npy", data["x_test"])
+    np.save(f"vggflowers_y_test_{info}.npy", data["y_test"])
+    print("Done")
+
