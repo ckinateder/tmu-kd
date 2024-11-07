@@ -4,7 +4,7 @@ from tmu.tools import BenchmarkTimer
 from tmu.util.cuda_profiler import CudaProfiler
 from tmu.data.tmu_dataset import TMUDataset
 from tmu.data import MNIST, FashionMNIST, CIFAR10
-
+from tmu.models.classification.distillation_classifier import DistillationClassifier
 import numpy as np
 import cv2
 
@@ -85,7 +85,7 @@ def run_general_experiment(
     
     data = dataset().get()
     
-    tm = TMClassifier(
+    tm = DistillationClassifier(
         type_iii_feedback=False,
         number_of_clauses=num_clauses,
         T=T,
@@ -110,14 +110,15 @@ def run_general_experiment(
                     data["y_train"].astype(np.uint32),
                     metrics=["update_p"],
                 )
+                # class sums 
                 _LOGGER.info(f"Res: {res}")
 
             experiment_results["train_time"].append(benchmark1.elapsed())
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
                 prediction, class_sums = tm.predict(data["x_test"], return_class_sums=True)
-                pdb.set_trace()
-                # class sums 
+
+                
 
                 result = 100 * (prediction == data["y_test"]).mean()
                 experiment_results["accuracy"].append(result)
