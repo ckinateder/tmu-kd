@@ -32,6 +32,12 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DistillationClassifier(TMClassifier):
+    """
+    DistillationClassifier is a classifier that uses a teacher-student model to train the student model.
+    It is a subclass of TMClassifier and uses the same parameters as TMClassifier.
+    An instance of DistillationClassifier can be either a teacher or a student model; the
+    structure is the same except for some additional parameters that are only used by the student model.
+    """
     def __init__(
         self,
         number_of_clauses: int,
@@ -98,6 +104,7 @@ class DistillationClassifier(TMClassifier):
             seed,
         )
 
+    #@override
     def _fit_sample(
             self,
             target: int,
@@ -105,7 +112,8 @@ class DistillationClassifier(TMClassifier):
             sample_idx: int,
             clause_active: np.ndarray,
             literal_active: np.ndarray,
-            encoded_X_train
+            encoded_X_train,
+            
     ) -> Tuple[dict, np.ndarray, np.ndarray]:
 
         class_sum, clause_outputs = self.mechanism_clause_sum(
@@ -153,28 +161,114 @@ class DistillationClassifier(TMClassifier):
             encoded_X_train=encoded_X_train
         )
 
+        # OVERRIDE to return the class sum
+        return dict(
+            update_p_not_target=update_p_not_target,
+            update_p_target=update_p_target,
+        ), class_sum, class_sum_not
+    
+    def _fit_sample_student(
+            self,
+            target: int,
+            not_target: int | None,
+            sample_idx: int,
+            clause_active: np.ndarray,
+            literal_active: np.ndarray,
+            encoded_X_train,
+            teacher_multiplier: float ,
+            teacher_sum: np.uint32 ,
+            teacher_sum_not: np.uint32,
+            
+    ) -> Tuple[dict, np.ndarray, np.ndarray]:
+
+        class_sum, clause_outputs = self.mechanism_clause_sum(
+            target=target,
+            clause_active=clause_active,
+            literal_active=literal_active,
+            encoded_X_train=encoded_X_train,
+            sample_idx=sample_idx
+        )
+
+        # apply the teacher multiplier
+        class_sum += teacher_multiplier * teacher_sum
+
+        update_p_target: float = self._fit_sample_target(
+            class_sum=class_sum,
+            clause_outputs=clause_outputs,
+            is_target_class=True,
+            class_value=target,
+            sample_idx=sample_idx,
+            clause_active=clause_active,
+            literal_active=literal_active,
+            encoded_X_train=encoded_X_train
+        )
+
+        # for incremental, and when we only have 1 sample, there is no other targets
+        if not_target is None:
+            return dict(
+                update_p_target=update_p_target,
+                update_p_not_target=None
+            )
+
+        class_sum_not, clause_outputs_not = self.mechanism_clause_sum(
+            target=not_target,
+            clause_active=clause_active,
+            literal_active=literal_active,
+            encoded_X_train=encoded_X_train,
+            sample_idx=sample_idx
+        )
+
+
+        # apply the teacher multiplier
+        class_sum_not += teacher_multiplier * teacher_sum_not
+
+        update_p_not_target: float = self._fit_sample_target(
+            class_sum=class_sum_not,
+            clause_outputs=clause_outputs_not,
+            is_target_class=False,
+            class_value=not_target,
+            sample_idx=sample_idx,
+            clause_active=clause_active,
+            literal_active=literal_active,
+            encoded_X_train=encoded_X_train
+        )
+
         return dict(
             update_p_not_target=update_p_not_target,
             update_p_target=update_p_target,
         ), class_sum, class_sum_not
 
+    #@override
     def fit(
             self,
             X: np.ndarray[np.uint32],
             Y: np.ndarray[np.uint32],
             shuffle: bool = True,
             metrics: typing.Optional[list] = None,
-            teacher_sums: np.ndarray[np.float32] = None,
-            teacher_sums_not: np.ndarray[np.float32] = None,
-            teacher_multiplier: float = 1.0,
+            teacher_sums: np.ndarray[np.uint32] = None,
+            teacher_sums_not: np.ndarray[np.uint32] = None,
+            teacher_multiplier: float = 0.0,
             *args,
             **kwargs
     )->Tuple[dict, np.ndarray, np.ndarray]:
+        """Fit the model to the given data.
+
+        Args:
+            X (np.ndarray[np.uint32]): _description_
+            Y (np.ndarray[np.uint32]): _description_
+            shuffle (bool, optional): _description_. Defaults to True.
+            metrics (typing.Optional[list], optional): _description_. Defaults to None.
+            teacher_sums (np.ndarray[np.uint32], optional): _description_. Defaults to None.
+            teacher_sums_not (np.ndarray[np.uint32], optional): _description_. Defaults to None.
+            teacher_multiplier (float, optional): _description_. Defaults to 0.0.
+
+        Returns:
+            Tuple[dict, np.ndarray, np.ndarray]: _description_
+        """
         # both the teacher and student will export the same metrics and class sums
         # only if teacher sums are provided will the student be trained
-        student = False
-        if teacher_sums is not None:
-            student = True
+        student = teacher_sums is not None
+        if student:
             assert teacher_sums_not is not None, "Teacher sums not provided"
             assert teacher_multiplier > 0, "Teacher multiplier must be greater than 0"
 
@@ -198,25 +292,41 @@ class DistillationClassifier(TMClassifier):
 
         sample_indices: np.ndarray = np.arange(X.shape[0])
         if shuffle:
+            raise NotImplementedError("Shuffling is not implemented and will break the indices")
             self.rng.shuffle(sample_indices)
+            
 
-        class_sums = np.zeros(sample_indices.shape, dtype=np.float32)
-        class_sums_not = np.zeros(sample_indices.shape, dtype=np.float32)
-
+        # set up output arrays
+        class_sums = np.zeros(sample_indices.shape)
+        class_sums_not = np.zeros(sample_indices.shape)
+        
         for sample_idx in sample_indices:
             target: int = Y[sample_idx]
             not_target: int | None = self.weight_banks.sample(exclude=[target])
 
-            history, class_sum, class_sum_not = self._fit_sample(
-                target=target,
-                not_target=not_target,
-                sample_idx=sample_idx,
-                clause_active=clause_active,
-                literal_active=literal_active,
-                encoded_X_train=encoded_X_train
-            )
+            if student:
+                history, class_sum, class_sum_not = self._fit_sample_student(
+                    target=target,
+                    not_target=not_target,
+                    sample_idx=sample_idx,
+                    clause_active=clause_active,
+                    literal_active=literal_active,
+                    encoded_X_train=encoded_X_train,
+                    teacher_multiplier=teacher_multiplier,
+                    teacher_sum=teacher_sums[sample_idx],
+                    teacher_sum_not=teacher_sums_not[sample_idx]
+                )
+            else:
+                history, class_sum, class_sum_not = self._fit_sample(
+                    target=target,
+                    not_target=not_target,
+                    sample_idx=sample_idx,
+                    clause_active=clause_active,
+                    literal_active=literal_active,
+                    encoded_X_train=encoded_X_train
+                )
 
-            # now update the class sums np.ndarray
+            # now update the class sums np.ndarray with the new class sum
             class_sums[sample_idx] = class_sum
             class_sums_not[sample_idx] = class_sum_not
 
