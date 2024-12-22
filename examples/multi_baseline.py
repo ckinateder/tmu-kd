@@ -4,7 +4,6 @@ from tmu.tools import BenchmarkTimer
 from tmu.util.cuda_profiler import CudaProfiler
 from tmu.data.tmu_dataset import TMUDataset
 from tmu.data import MNIST, FashionMNIST, CIFAR10
-from tmu.models.classification.distillation_classifier import DistillationClassifier
 import numpy as np
 import cv2
 
@@ -18,7 +17,7 @@ import os
 import pdb
 import ssl
 import sys
-
+from tqdm import trange, tqdm
 ssl._create_default_https_context = ssl._create_unverified_context
 
 SEED = 42
@@ -35,9 +34,12 @@ class DotDict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
+# these are all our results in a format.
+# TODO make a class instead
 def metrics(args, experiment_name=""):
     return dict(
         accuracy=[],
+        teacher_accuracy=[],
         variance=-1,
         train_time=[],
         test_time=[],
@@ -85,7 +87,7 @@ def run_general_experiment(
     
     data = dataset().get()
     
-    tm = DistillationClassifier(
+    tm = TMClassifier(
         type_iii_feedback=False,
         number_of_clauses=num_clauses,
         T=T,
@@ -117,9 +119,6 @@ def run_general_experiment(
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
                 prediction, class_sums = tm.predict(data["x_test"], return_class_sums=True)
-
-                
-
                 result = 100 * (prediction == data["y_test"]).mean()
                 experiment_results["accuracy"].append(result)
             experiment_results["test_time"].append(benchmark2.elapsed())
@@ -140,17 +139,14 @@ def run_general_experiment(
 def run_kd_experiment(
     dataset:TMUDataset,
     teacher_num_clauses=2000,
-    teacher_T=5000,
-    teacher_s=10.0,
     student_num_clauses=80,
-    student_T=5000,
-    student_s=10.0,
-    teacher_multiplier=1.0,
-    shuffle=False,
+    T=5000,
+    s=10.0,
     max_included_literals=32,
     platform="CUDA",
     weighted_clauses=True,
-    epochs=60,
+    teacher_epochs=60,
+    student_epochs=60,
     clause_drop_p=0.0,
     literal_drop_p=0.0,
     batch_size=256,
@@ -166,31 +162,41 @@ def run_kd_experiment(
     args = DotDict(
         {
             "teacher_num_clauses": teacher_num_clauses,
-            "teacher_T": teacher_T,
-            "teacher_s": teacher_s,
             "student_num_clauses": student_num_clauses,
-            "student_T": student_T,
-            "student_s": student_s,
-
+            "T": T,
+            "s": s,
             "max_included_literals": max_included_literals,
             "platform": platform,
             "weighted_clauses": weighted_clauses,
-            "epochs": epochs,
+            "teacher_epochs": teacher_epochs,
+            "student_epochs": student_epochs,
             "clause_drop_p": clause_drop_p,
             "literal_drop_p": literal_drop_p,
-            "batch_size": batch_size   
+            "batch_size": batch_size            
         }
     )
     _LOGGER.info(f"Running {experiment_name} with {args}")
     experiment_results = metrics(args,  experiment_name)
     
     data = dataset().get()
+
+    student = TMClassifier(
+        number_of_clauses=student_num_clauses,
+        T=T,
+        s=s,
+        max_included_literals=max_included_literals,
+        platform=platform,
+        weighted_clauses=weighted_clauses,
+        seed=SEED,
+        clause_drop_p=clause_drop_p,
+        literal_drop_p=literal_drop_p,
+        batch_size=batch_size,
+    )
     
-    teacher = DistillationClassifier(
-        type_iii_feedback=False,
+    teacher = TMClassifier(
         number_of_clauses=teacher_num_clauses,
-        T=teacher_T,
-        s=teacher_s,
+        T=T,
+        s=s,
         max_included_literals=max_included_literals,
         platform=platform,
         weighted_clauses=weighted_clauses,
@@ -200,66 +206,32 @@ def run_kd_experiment(
         batch_size=batch_size,
     )
 
-    student = DistillationClassifier(
-        type_iii_feedback=False,
-        number_of_clauses=student_num_clauses,
-        T=student_T,
-        s=student_s,
-        max_included_literals=max_included_literals,
-        platform=platform,
-        weighted_clauses=weighted_clauses,
-        seed=SEED,
-        clause_drop_p=clause_drop_p,
-        literal_drop_p=literal_drop_p,
-        batch_size=batch_size,
-    )
-
-    basic = TMClassifier(
-        number_of_clauses=student_num_clauses,
-        T=student_T,
-        s=student_s,
-        max_included_literals=max_included_literals,
-        platform=platform,
-        weighted_clauses=weighted_clauses,
-        seed=SEED,
-        clause_drop_p=clause_drop_p,
-        literal_drop_p=literal_drop_p,
-        batch_size=batch_size,
-    )
-
+    x_train = data["x_train"]
+    y_train = data["y_train"]
+    x_test = data["x_test"]
+    y_test = data["y_test"]
+    
+    # train baseline teacher
+    _LOGGER.info("Training teacher")
     start_time = time()
-    for epoch in range(args.epochs):
+    for epoch in range(args.teacher_epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
             benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
             with benchmark1:
-                # train teacher
-                teacher_res, class_sums, class_sums_not = teacher.fit(
-                    data["x_train"].astype(np.uint32),
-                    data["y_train"].astype(np.uint32),
+                res = teacher.fit(
+                    x_train.astype(np.uint32),
+                    y_train.astype(np.uint32),
                     metrics=["update_p"],
-                    shuffle=shuffle,
                 )
-                
-                # then fit student
-                student_res, _, _ = student.fit(
-                    data["x_train"].astype(np.uint32),
-                    data["y_train"].astype(np.uint32),
-                    teacher_multiplier=teacher_multiplier,
-                    teacher_sums=class_sums,
-                    teacher_sums_not=class_sums_not,
-                    metrics=["update_p"],
-                    shuffle=shuffle,
-                )
+                # class sums 
+                _LOGGER.info(f"Res: {res}")
 
-            experiment_results["train_time"].append(benchmark1.elapsed())
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
-                prediction, class_sums = student.predict(data["x_test"], return_class_sums=True)
-                result = 100 * (prediction == data["y_test"]).mean()
-                experiment_results["accuracy"].append(result)
-
-            experiment_results["test_time"].append(benchmark2.elapsed())
+                prediction, _ = teacher.predict(x_test, return_class_sums=True)
+                result = 100 * (prediction == y_test).mean()
+                #experiment_results["teacher_accuracy"].append(result)
 
             _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
                          f"Testing Time: {benchmark2.elapsed():.2f}s")
@@ -269,8 +241,45 @@ def run_kd_experiment(
 
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
-    experiment_results["total_time"] = end_time - start_time
-    experiment_results["variance"] = np.var(experiment_results["accuracy"])
+    #experiment_results["teacher_time"] = end_time - start_time
+    #experiment_results["teacher_variance"] = np.var(experiment_results["teacher_accuracy"])
+    
+    
+    # train student with knowledge distillation
+    _LOGGER.info("Training student with knowledge distillation")
+    start_time = time()
+    for epoch in range(args.student_epochs):
+        benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
+        with benchmark_total:
+            benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
+            with benchmark1:
+                res = student.fit(
+                    teacher.transform(x_train.astype(np.uint32)),
+                    y_train.astype(np.uint32),
+                    teacher=teacher,
+                    metrics=["update_p"],
+                )
+                # class sums 
+                _LOGGER.info(f"Res: {res}")
+
+            benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
+            with benchmark2:
+                prediction, _ = student.predict(teacher.transform(x_test), return_class_sums=True)
+                result = 100 * (prediction == y_test).mean()
+                #experiment_results["student_teacher_accuracy"].append(result)
+
+            _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
+                         f"Testing Time: {benchmark2.elapsed():.2f}s")
+
+        if args.platform == "CUDA":
+            CudaProfiler().print_timings(benchmark=benchmark_total)
+    
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    #experiment_results["total_time"] = end_time - start_time
+    #experiment_results["variance"] = np.var(experiment_results["student_teacher_accuracy"])
+    
+       
     return experiment_results
 
 
@@ -319,9 +328,9 @@ if __name__ == "__main__":
 
     results = []
     
-    kd_experiments = [
-        {"dataset":MNIST, "experiment_name": "MNIST", "teacher_num_clauses": 2000, "teacher_T": 5000, "teacher_s": 10.0, "student_num_clauses": 80, "student_T": 5000, "student_s": 10.0, "teacher_multiplier": 1.0, "epochs": 60},
-    ]
+    kd_experiments = [   
+        {"dataset": MNIST, "experiment_name": "MNIST", "teacher_num_clauses": 400, "student_num_clauses": 100, "T": 10, "s": 5, "clause_drop_p": 0.25, "teacher_epochs": 15, "student_epochs": 15}
+     ]
 
     for ex in kd_experiments:
         result = run_kd_experiment(**ex)
@@ -332,9 +341,7 @@ if __name__ == "__main__":
                 json.dump(results, f, indent=4)
             with open("latest.json", "w") as f:
                 json.dump(results, f, indent=4)
-
-    sys.exit(0)
-
+    """
     general_experiments = [
         {"dataset":MNIST, "experiment_name": "MNIST", "num_clauses": 80, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
         {"dataset":MNIST, "experiment_name": "MNIST", "num_clauses": 800, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
@@ -356,7 +363,7 @@ if __name__ == "__main__":
                 json.dump(results, f, indent=4)
             with open("latest.json", "w") as f:
                 json.dump(results, f, indent=4)
-
+    """
     # print results
     for result in results:
         _LOGGER.info(result)
