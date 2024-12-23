@@ -17,6 +17,9 @@ import os
 import pdb
 import ssl
 import sys
+import pandas as pd
+import matplotlib.pyplot as plt
+
 from tqdm import trange, tqdm
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -151,7 +154,7 @@ def run_kd_experiment(
     literal_drop_p=0.0,
     batch_size=256,
     experiment_name="Unnamed",
-)->dict:
+)->pd.DataFrame:
     """Run a general experiment with the given data and parameters.
     This will utilize the TMClassifier to train and test the data.
     Metrics returned will include the accuracy, variance, training time, testing time, and total time.
@@ -170,16 +173,17 @@ def run_kd_experiment(
             "weighted_clauses": weighted_clauses,
             "teacher_epochs": teacher_epochs,
             "student_epochs": student_epochs,
+            "combined_epochs": teacher_epochs + student_epochs,
             "clause_drop_p": clause_drop_p,
             "literal_drop_p": literal_drop_p,
             "batch_size": batch_size            
         }
     )
     _LOGGER.info(f"Running {experiment_name} with {args}")
-    experiment_results = metrics(args,  experiment_name)
     
     data = dataset().get()
 
+    # student baseline
     student = TMClassifier(
         number_of_clauses=student_num_clauses,
         T=T,
@@ -193,8 +197,37 @@ def run_kd_experiment(
         batch_size=batch_size,
     )
     
+    # teacher baseline
     teacher = TMClassifier(
         number_of_clauses=teacher_num_clauses,
+        T=T,
+        s=s,
+        max_included_literals=max_included_literals,
+        platform=platform,
+        weighted_clauses=weighted_clauses,
+        seed=SEED,
+        clause_drop_p=clause_drop_p,
+        literal_drop_p=literal_drop_p,
+        batch_size=batch_size,
+    )
+    
+    # teacher for knowledge distillation
+    teacher_trainer = TMClassifier(
+        number_of_clauses=teacher_num_clauses,
+        T=T,
+        s=s,
+        max_included_literals=max_included_literals,
+        platform=platform,
+        weighted_clauses=weighted_clauses,
+        seed=SEED,
+        clause_drop_p=clause_drop_p,
+        literal_drop_p=literal_drop_p,
+        batch_size=batch_size,
+    )
+    
+    # distilled for knowledge distillation
+    distilled = TMClassifier(
+        number_of_clauses=student_num_clauses,
         T=T,
         s=s,
         max_included_literals=max_included_literals,
@@ -210,11 +243,16 @@ def run_kd_experiment(
     y_train = data["y_train"]
     x_test = data["x_test"]
     y_test = data["y_test"]
+
+    # create results logger
+    results = pd.DataFrame(columns=["acc_test_teacher", "acc_test_student", "acc_test_distilled", "time_train_teacher", "time_train_student",
+                        "time_train_distilled", "time_test_teacher", "time_test_student", "time_test_distilled"], index=range(args.combined_epochs))
+
     
     # train baseline teacher
     _LOGGER.info("Training teacher")
     start_time = time()
-    for epoch in range(args.teacher_epochs):
+    for epoch in range(args.combined_epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
             benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
@@ -224,8 +262,6 @@ def run_kd_experiment(
                     y_train.astype(np.uint32),
                     metrics=["update_p"],
                 )
-                # class sums 
-                _LOGGER.info(f"Res: {res}")
 
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
@@ -235,53 +271,118 @@ def run_kd_experiment(
 
             _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
                          f"Testing Time: {benchmark2.elapsed():.2f}s")
-
-        if args.platform == "CUDA":
-            CudaProfiler().print_timings(benchmark=benchmark_total)
+            # add to dataframe
+            results.loc[epoch, "acc_test_teacher"] = result
+            results.loc[epoch, "time_train_teacher"] = benchmark1.elapsed()
+            results.loc[epoch, "time_test_teacher"] = benchmark2.elapsed()
 
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
-    #experiment_results["teacher_time"] = end_time - start_time
-    #experiment_results["teacher_variance"] = np.var(experiment_results["teacher_accuracy"])
     
-    
-    # train student with knowledge distillation
-    _LOGGER.info("Training student with knowledge distillation")
+    # train baseline student
+    _LOGGER.info("Training student")
     start_time = time()
-    for epoch in range(args.student_epochs):
+    for epoch in range(args.combined_epochs):
         benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
         with benchmark_total:
             benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
             with benchmark1:
                 res = student.fit(
-                    teacher.transform(x_train.astype(np.uint32)),
+                    x_train.astype(np.uint32),
                     y_train.astype(np.uint32),
-                    teacher=teacher,
                     metrics=["update_p"],
                 )
-                # class sums 
-                _LOGGER.info(f"Res: {res}")
 
             benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
             with benchmark2:
-                prediction, _ = student.predict(teacher.transform(x_test), return_class_sums=True)
+                prediction, _ = student.predict(x_test, return_class_sums=True)
                 result = 100 * (prediction == y_test).mean()
-                #experiment_results["student_teacher_accuracy"].append(result)
 
             _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
                          f"Testing Time: {benchmark2.elapsed():.2f}s")
+            # add to dataframe
+            results.loc[epoch, "acc_test_student"] = result
+            results.loc[epoch, "time_train_student"] = benchmark1.elapsed()
+            results.loc[epoch, "time_test_student"] = benchmark2.elapsed()
+            
+            
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    
+    # redo the training with the distilled for the teacher
+    
+    # train trainer teacher
+    _LOGGER.info("Training training teacher")
+    start_time = time()
+    for epoch in range(args.teacher_epochs):
+        benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
+        with benchmark_total:
+            benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
+            with benchmark1:
+                res = teacher_trainer.fit(
+                    x_train.astype(np.uint32),
+                    y_train.astype(np.uint32),
+                    metrics=["update_p"],
+                )
+                
+            benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
+            with benchmark2:
+                prediction, _ = teacher_trainer.predict(x_test, return_class_sums=True)
+                result = 100 * (prediction == y_test).mean()
+                #experiment_results["teacher_accuracy"].append(result)
 
-        if args.platform == "CUDA":
-            CudaProfiler().print_timings(benchmark=benchmark_total)
+            _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
+                         f"Testing Time: {benchmark2.elapsed():.2f}s")
+            # add to dataframe
+            results.loc[epoch, "acc_test_distilled"] = result
+            results.loc[epoch, "time_train_distilled"] = benchmark1.elapsed()
+            results.loc[epoch, "time_test_distilled"] = benchmark2.elapsed()
+            
+
+    end_time = time()
+    _LOGGER.info(f"Total time taken: {end_time - start_time}")
+    
+    # train distilled with knowledge distillation
+    _LOGGER.info("Training distilled with knowledge distillation on top of teacher_trainer")
+    start_time = time()
+    for epoch in range(args.teacher_epochs, args.combined_epochs):
+        benchmark_total = BenchmarkTimer(logger=_LOGGER, text="Epoch Time")
+        with benchmark_total:
+            benchmark1 = BenchmarkTimer(logger=_LOGGER, text="Training Time")
+            with benchmark1:
+                res = distilled.fit(
+                    teacher_trainer.transform(x_train.astype(np.uint32)),
+                    y_train.astype(np.uint32),
+                    metrics=["update_p"],
+                )
+                
+            benchmark2 = BenchmarkTimer(logger=_LOGGER, text="Testing Time")
+            with benchmark2:
+                prediction, _ = distilled.predict(teacher_trainer.transform(x_test), return_class_sums=True)
+                result = 100 * (prediction == y_test).mean()
+                #experiment_results["distilled_accuracy"].append(result)
+
+            _LOGGER.info(f"Epoch: {epoch + 1}, Accuracy: {result:.2f}, Training Time: {benchmark1.elapsed():.2f}s, "
+                         f"Testing Time: {benchmark2.elapsed():.2f}s")
+            
+            # add to dataframe
+            results.loc[epoch, "acc_test_distilled"] = result
+            results.loc[epoch, "time_train_distilled"] = benchmark1.elapsed()
+            results.loc[epoch, "time_test_distilled"] = benchmark2.elapsed()
     
     end_time = time()
     _LOGGER.info(f"Total time taken: {end_time - start_time}")
-    #experiment_results["total_time"] = end_time - start_time
-    #experiment_results["variance"] = np.var(experiment_results["student_teacher_accuracy"])
     
-       
-    return experiment_results
+    return results
 
+def plot_results(results, outfile):
+    plt.figure()
+    plt.plot(results["acc_test_teacher"], label="Teacher")
+    plt.plot(results["acc_test_student"], label="Student")
+    plt.plot(results["acc_test_distilled"], label="Distilled")
+    plt.legend()
+    plt.savefig(outfile)
+    plt.close()
 
 if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -301,7 +402,7 @@ if __name__ == "__main__":
             os.remove("latest.log")
 
     # Set the desired log level here
-    _LOGGER.setLevel(logging.DEBUG)
+    _LOGGER.setLevel(logging.INFO)
 
     # Create a formatter to define the log format
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S %Z')
@@ -329,18 +430,18 @@ if __name__ == "__main__":
     results = []
     
     kd_experiments = [   
-        {"dataset": MNIST, "experiment_name": "MNIST", "teacher_num_clauses": 400, "student_num_clauses": 100, "T": 10, "s": 5, "clause_drop_p": 0.25, "teacher_epochs": 15, "student_epochs": 15}
+        {"dataset": CIFAR10, "experiment_name": "CIFAR10", "teacher_num_clauses": 1600, "student_num_clauses": 200, 
+         "T": 10, "s": 5, "clause_drop_p": 0.25, "teacher_epochs": 3, "student_epochs": 3 }
      ]
 
     for ex in kd_experiments:
-        result = run_kd_experiment(**ex)
+        result: pd.DataFrame = run_kd_experiment(**ex)
         _LOGGER.info(result)
         # save results
         if not args.no_log:
-            with open(os.path.join("logs", f"results-{current_time}.json"), "w") as f:
-                json.dump(results, f, indent=4)
-            with open("latest.json", "w") as f:
-                json.dump(results, f, indent=4)
+            result.to_csv(os.path.join("logs", f"results-{current_time}.csv"))
+            result.to_csv("latest.csv")
+                            
     """
     general_experiments = [
         {"dataset":MNIST, "experiment_name": "MNIST", "num_clauses": 80, "T": 6400, "s": 5, "clause_drop_p": 0.25, "epochs": 60},
